@@ -2,11 +2,12 @@
 using BaseLibrary.Responses;
 using Microsoft.EntityFrameworkCore;
 using ServerLibrary.Data;
+using ServerLibrary.Helpers;
 using ServerLibrary.Repositories.Contracts;
 
 namespace ServerLibrary.Repositories.Implementations
 {
-    public class AppointmentsRepository(AppDbContext appDbContext) : IGenerictRepositoryInterface<Appointment>
+    public class AppointmentsRepository(AppDbContext appDbContext) : IGenerictRepositoryInterface<Appointment>, IAppointmentInterface
     {
         public async Task<GeneralResponse> DeleteByID(int id)
         {
@@ -26,12 +27,23 @@ namespace ServerLibrary.Repositories.Implementations
             .Include(d => d.Patient)
             .ToListAsync();
 
-        public async Task<List<Appointment>> GetAllByUser(int userId, bool isDoctor) => await appDbContext
-            .Appointments.AsNoTracking()
-            .Where(_ => (isDoctor && _.DoctorId == userId) || _.PatientId == userId)
-            .Include(d => d.Doctor)
-            .Include(d => d.Patient)
-            .ToListAsync();
+        public async Task<List<Appointment>> GetAllByUser(string token)
+        {
+            var tokenInfo = await appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(_ => _.Token.Equals(token));
+            if (tokenInfo is null) return new List<Appointment>();
+
+            var userRole = await appDbContext.UserRoles.FirstOrDefaultAsync(_ => _.UserId == tokenInfo!.UserId);
+            var systemRole = await appDbContext.SystemRoles.FindAsync(userRole!.RoleId);
+
+            bool isDoctor = systemRole!.Name!.Equals(Constants.Doctor);
+
+            return await appDbContext
+                .Appointments.AsNoTracking()
+                .Where(_ => (isDoctor && _.DoctorId == tokenInfo!.UserId) || _.PatientId == tokenInfo!.UserId)
+                .Include(d => d.Doctor)
+                .Include(d => d.Patient)
+                .ToListAsync();
+        }
 
         public async Task<Appointment> GetById(int id) => await appDbContext.Appointments.FindAsync(id) ?? new Appointment();
         

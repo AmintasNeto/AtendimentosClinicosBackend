@@ -87,7 +87,7 @@ namespace ServerLibrary.Repositories.Implementations
             if (token is null) return new LoginResponse(false, "Model is empty");
 
             var findToken = await appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(_ => _.Token!.Equals(token.Token));
-            if (findToken is null) return new LoginResponse(false, "Refresh toke is required");
+            if (findToken is null) return new LoginResponse(false, "Refresh token is required");
 
             var user = await appDbContext.ApplicationUsers.FirstOrDefaultAsync(_ => _.Id == findToken.Id);
             if (user is null) return new LoginResponse(false, "Refresh token could not be generated because the user was not found");
