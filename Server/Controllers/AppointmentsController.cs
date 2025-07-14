@@ -1,0 +1,13 @@
+﻿using BaseLibrary.Entities;
+using Microsoft.AspNetCore.Mvc;
+using ServerLibrary.Repositories.Contracts;
+
+namespace Server.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AppointmentsController(IGenerictRepositoryInterface<Appointment> generictRepositoryInterface) 
+        : GenericController<Appointment>(generictRepositoryInterface)
+    {
+    }
+}
