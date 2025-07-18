@@ -80,7 +80,7 @@ namespace ServerLibrary.Repositories.Implementations
             {
                 await AddToDatabase(new RefreshTokenInfo() { Token = refreshToken, UserId = applicationUser.Id });
             }
-            return new LoginResponse(true, "Login succesfully", jwtToken, refreshToken);
+            return new LoginResponse(true, "Login succesfully", applicationUser.Fullname!, getRoleName.Name!, jwtToken, refreshToken, applicationUser.Id);
         }
         public async Task<LoginResponse> RefreshTokenAsync(RefreshToken token)
         {
@@ -93,8 +93,8 @@ namespace ServerLibrary.Repositories.Implementations
             if (user is null) return new LoginResponse(false, "Refresh token could not be generated because the user was not found");
 
             var userRole = await FindUserRole(user.Id);
-            var roleName =  await FindRoleName(userRole.RoleId);
-            string jwtToken = GenerateToken(user, roleName.Name!);
+            var roleName =  await FindRoleName(userRole!.RoleId);
+            string jwtToken = GenerateToken(user, roleName!.Name!);
             string refreshToken = GenerateRefreshToken();
 
             var updateRefreshToken = await appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(_ => _.UserId == user.Id);
@@ -104,6 +104,7 @@ namespace ServerLibrary.Repositories.Implementations
             await appDbContext.SaveChangesAsync();
             return new LoginResponse(true, "Token has refreshed succesfully", jwtToken, refreshToken);
         }
+
         private async Task<ApplicationUser?> FindUserByEmail(string email) => 
             await appDbContext.ApplicationUsers.FirstOrDefaultAsync(_ => _.Email!.ToLower()!.Equals(email.ToLower()));
 
@@ -140,45 +141,5 @@ namespace ServerLibrary.Repositories.Implementations
 
         private async Task<UserRole?> FindUserRole(int userId) => await appDbContext.UserRoles.FirstOrDefaultAsync(_ => _.UserId == userId);
         private async Task<SystemRole?> FindRoleName(int roleId) => await appDbContext.SystemRoles.FirstOrDefaultAsync(_ => _.Id == roleId);
-
-        private async Task<List<UserRole>> GetUserRoles() => await appDbContext.UserRoles.AsNoTracking().ToListAsync();
-        private async Task<List<ApplicationUser>> GetApplicationUsers() => await appDbContext.ApplicationUsers.AsNoTracking().ToListAsync();
-
-        public async Task<List<ManageUser>> GetUsers()
-        {
-            var allUsers = await GetApplicationUsers();
-            var allUserRoles = await GetUserRoles();
-            var allRoles = await GetRoles();
-
-            if (allUsers.Count == 0 || allRoles.Count == 0) return null!;
-
-            var users = new List<ManageUser>();
-            foreach (var user in allUsers)
-            {
-                var userRole = allUserRoles.FirstOrDefault(u => u.UserId == user.Id);
-                var roleName = allRoles.FirstOrDefault(r => r.Id == userRole!.RoleId);
-                users.Add(new ManageUser() { UserId = user.Id, Name = user.Fullname!, Email = user.Email!, Role = roleName!.Name! });
-            }
-            return users;
-        }
-
-        public async Task<List<SystemRole>> GetRoles() => await appDbContext.SystemRoles.AsNoTracking().ToListAsync();
-
-        public async Task<GeneralResponse> UpdateUser(ManageUser user)
-        {
-            var getRole = (await GetRoles()).FirstOrDefault(r => r.Name!.Equals(user.Role));
-            var userRole = await appDbContext.UserRoles.FirstOrDefaultAsync(u => u.UserId == user.UserId);
-            userRole!.RoleId = getRole!.Id;
-            await appDbContext.SaveChangesAsync();
-            return new GeneralResponse(true, "User role update succesfully");
-        }
-
-        public async Task<GeneralResponse> DeleteUser(int id)
-        {
-            var user = await appDbContext.ApplicationUsers.FirstOrDefaultAsync(u => u.Id == id);
-            appDbContext.ApplicationUsers.Remove(user!);
-            await appDbContext.SaveChangesAsync();
-            return new GeneralResponse(true, "User successfully deleted");
-        }
     }
 }
