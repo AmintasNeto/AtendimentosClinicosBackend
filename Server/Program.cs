@@ -48,7 +48,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddScoped<IUserAccount, UserAccountRepository>();
 
-builder.Services.AddScoped<IGenerictRepositoryInterface<Appointment>,  AppointmentsRepository>();
+builder.Services.AddScoped<IAppointment,  AppointmentsRepository>();
 
 builder.Services.AddCors(options =>
 {
