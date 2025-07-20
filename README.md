@@ -6,7 +6,7 @@
 # Instruções
 * Abra o Microsoft Visual Studio Code;
 * Vá em abrir solução;
-* Selecione o arquivo com a extensão .sln na pasta raíz desse projeto;
+* Selecione o arquivo AtendimentosClinicos.sln na pasta raíz desse projeto;
 * Após carregar o projeto selecione a opção de excução http e execute o projeto;
 
 ## Observação:
