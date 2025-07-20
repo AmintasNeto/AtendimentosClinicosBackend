@@ -9,10 +9,24 @@ namespace ServerLibrary.Repositories.Implementations
 {
     public class AppointmentsRepository(AppDbContext appDbContext) : IAppointment
     {
+        private static bool IsOpen(Appointment appointment)
+        {
+            var currentDate = DateOnly.FromDateTime(DateTime.Now);
+            var currentHour = DateTime.Now.TimeOfDay;
+
+            return (!appointment.IsCanceled
+                && appointment.AppointmentDate > currentDate
+                || (appointment.AppointmentDate == currentDate
+                    && appointment.AppointmentStartTime >= currentHour)
+            );
+        }
+
         public async Task<GeneralResponse> DeleteByID(int id)
         {
             var appointment = await appDbContext.Appointments.FindAsync(id);
             if (appointment is null) return NotFound();
+
+            if(!IsOpen(appointment)) return new(false, "Não foi possível realizar o cancelamento!");
 
             appointment.IsCanceled = true;
 
@@ -27,30 +41,31 @@ namespace ServerLibrary.Repositories.Implementations
             var currentHour = DateTime.Now.TimeOfDay;
 
             return await appDbContext
-                .Appointments.AsNoTracking()
-                .Where(_ => !_.IsCanceled 
-                    && (_.AppointmentDate > currentDate || (_.AppointmentDate == currentDate 
-                        && _.AppointmentStartTime >= currentHour))
-                    && _.PatientId == null)
-                .Include(d => d.Doctor)
-                .Include(p => p.Patient)
-                .Select(_ => new Appointment
-                {
-                    Id = _.Id,
-                    AppointmentDate = _.AppointmentDate,
-                    AppointmentStartTime = _.AppointmentStartTime,
-                    AppointmentEndTime = _.AppointmentEndTime,
-                    IsCanceled = _.IsCanceled,
-                    DoctorId = _.DoctorId,
-                    Doctor = new ApplicationUser { Id = _.Doctor!.Id, Fullname = _.Doctor!.Fullname },
-                    PatientId = _.PatientId,
-                    Patient = _.Patient != null
-                        ? new ApplicationUser { Id = _.Patient!.Id, Fullname = _.Patient!.Fullname }
-                        : null,
-                })
-                .OrderByDescending(_ => _.AppointmentDate)
-                .ThenByDescending(_ => _.AppointmentStartTime)
-                .ToListAsync();
+                    .Appointments.AsNoTracking()
+                    .Where(appointment => !appointment.IsCanceled
+                        && appointment.AppointmentDate > currentDate
+                        || (appointment.AppointmentDate == currentDate
+                            && appointment.AppointmentStartTime >= currentHour)
+                        && appointment.PatientId == null)
+                    .Include(d => d.Doctor)
+                    .Include(p => p.Patient)
+                    .Select(appointment => new Appointment
+                    {
+                        Id = appointment.Id,
+                        AppointmentDate = appointment.AppointmentDate,
+                        AppointmentStartTime = appointment.AppointmentStartTime,
+                        AppointmentEndTime = appointment.AppointmentEndTime,
+                        IsCanceled = appointment.IsCanceled,
+                        DoctorId = appointment.DoctorId,
+                        Doctor = new ApplicationUser { Id = appointment.Doctor!.Id, Fullname = appointment.Doctor!.Fullname },
+                        PatientId = appointment.PatientId,
+                        Patient = appointment.Patient != null
+                            ? new ApplicationUser { Id = appointment.Patient!.Id, Fullname = appointment.Patient!.Fullname }
+                            : null,
+                    })
+                    .OrderByDescending(appointment => appointment.AppointmentDate)
+                    .ThenByDescending(appointment => appointment.AppointmentStartTime)
+                    .ToListAsync();
         }
 
         public async Task<List<Appointment>> GetAllByUser(string token)
@@ -60,25 +75,25 @@ namespace ServerLibrary.Repositories.Implementations
 
             return await appDbContext
                 .Appointments.AsNoTracking()
-                .Where(_ => _.DoctorId == tokenInfo!.UserId || _.PatientId == tokenInfo!.UserId)
+                .Where(appointment => appointment.DoctorId == tokenInfo!.UserId || appointment.PatientId == tokenInfo!.UserId)
                 .Include(d => d.Doctor)
                 .Include(p => p.Patient)
-                .Select(_ => new Appointment
+                .Select(appointment => new Appointment
                 {
-                    Id = _.Id,
-                    AppointmentDate = _.AppointmentDate,
-                    AppointmentStartTime = _.AppointmentStartTime,
-                    AppointmentEndTime = _.AppointmentEndTime,
-                    IsCanceled = _.IsCanceled,
-                    DoctorId = _.DoctorId,
-                    Doctor = new ApplicationUser { Id = _.Doctor!.Id, Fullname = _.Doctor!.Fullname },
-                    PatientId = _.PatientId,
-                    Patient = _.Patient != null 
-                        ? new ApplicationUser { Id = _.Patient!.Id, Fullname = _.Patient!.Fullname }
+                    Id = appointment.Id,
+                    AppointmentDate = appointment.AppointmentDate,
+                    AppointmentStartTime = appointment.AppointmentStartTime,
+                    AppointmentEndTime = appointment.AppointmentEndTime,
+                    IsCanceled = appointment.IsCanceled,
+                    DoctorId = appointment.DoctorId,
+                    Doctor = new ApplicationUser { Id = appointment.Doctor!.Id, Fullname = appointment.Doctor!.Fullname },
+                    PatientId = appointment.PatientId,
+                    Patient = appointment.Patient != null 
+                        ? new ApplicationUser { Id = appointment.Patient!.Id, Fullname = appointment.Patient!.Fullname }
                         : null,
                 })
-                .OrderByDescending(_ => _.AppointmentDate)
-                .ThenByDescending(_ => _.AppointmentStartTime)
+                .OrderByDescending(appointment => appointment.AppointmentDate)
+                .ThenByDescending(appointment => appointment.AppointmentStartTime)
                 .ToListAsync();
         }
         
@@ -91,17 +106,20 @@ namespace ServerLibrary.Repositories.Implementations
         }
 
         private async Task<bool> CheckAppoitmentTimeConflict(Appointment item) // Return false if it able to register
-            => await appDbContext.Appointments.AnyAsync(_ => _.DoctorId == item.DoctorId
-                    && _.Id != item.Id
-                    && _.AppointmentDate == item.AppointmentDate
-                    && !_.IsCanceled
-                    && ((_.AppointmentStartTime < item.AppointmentStartTime && item.AppointmentStartTime < _.AppointmentEndTime)
-                    || (_.AppointmentStartTime < item.AppointmentEndTime && item.AppointmentEndTime < _.AppointmentEndTime))
+            => await appDbContext.Appointments.AnyAsync(appointment => appointment.DoctorId == item.DoctorId
+                    && appointment.Id != item.Id
+                    && appointment.AppointmentDate == item.AppointmentDate
+                    && !appointment.IsCanceled
+                    && ((appointment.AppointmentStartTime < item.AppointmentStartTime && item.AppointmentStartTime < appointment.AppointmentEndTime)
+                    || (appointment.AppointmentStartTime < item.AppointmentEndTime && item.AppointmentEndTime < appointment.AppointmentEndTime))
                 );
 
         public async Task<GeneralResponse> Update(Appointment item)
         {
             if (await CheckAppoitmentTimeConflict(item)) return new(false, "O horário da consulta conflita com o de outra já exstente!");
+
+            if(!IsOpen(item)) return new(false, "Apenas consultas em aberto ou agendadas podem ser editadas!");
+
             appDbContext.Appointments.Update(item);
 
             await Commit();
@@ -115,6 +133,8 @@ namespace ServerLibrary.Repositories.Implementations
 
             if (appointment.PatientId != null) return new(false, "A consulta já foi agendada para outra pessoa!");
 
+            if (!IsOpen(item)) return new(false, "Apenas consultas em aberto ou agendadas podem ser agendadas!");
+
             appointment.PatientId = item.PatientId;
 
             appDbContext.Appointments.Update(appointment);
@@ -127,6 +147,8 @@ namespace ServerLibrary.Repositories.Implementations
         {
             var appointment = await appDbContext.Appointments.FindAsync(id);
             if (appointment is null) return NotFound();
+
+            if (!IsOpen(appointment)) return new(false, "Não foi possível realizar o cancelamento!");
 
             appointment.PatientId = null;
 
