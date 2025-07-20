@@ -21,7 +21,8 @@ O banco de dados a ser configurado deve ser PostgreSql.
 * Abra o Microsoft Visual Studio Code;
 * Vá em abrir solução;
 * Selecione o arquivo AtendimentosClinicos.sln na pasta raíz desse projeto;
-* Após carregar o projeto selecione a opção de excução http e execute o projeto;
+* Após carregar o projeto selecione Server como projeto padrão;
+* Selecione a opção de excução http e execute o projeto
 
 ## Observação:
 O frontend do projeto (https://github.com/AmintasNeto/AtendimentosClinicosFrontend) deve estar sendo executado na porta 5180.
